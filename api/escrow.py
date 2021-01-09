@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from flask import current_app, Blueprint, request, make_response, jsonify
 from mongoengine.errors import DoesNotExist
 import requests
@@ -13,7 +15,7 @@ def resolve_escrow_record(record: EscrowRecord):
     return {
         'id': str(record.id),
         'name': record.name,
-        'key': record.key if disclose else None,
+        'data': record.key if disclose else None,
         'payment_address': record.payment_address,
         'release_amount': record.release_amount,
         'create_date': record.create_date.isoformat(),
@@ -22,17 +24,19 @@ def resolve_escrow_record(record: EscrowRecord):
 
 
 def check_address(address: str, amount: float, method: str):
-    if resolve_method == 'sochain':
+    if method == 'sochain':
         resp = requests.get(
             'https://sochain.com/api/v2/get_address_balance/BTC/{}'.format(
                 address
             )
         )
-        
+
         if resp.status_code != 200:
             return False
 
-        balance = float(resp.json().get('data', {}).get('confirmed_balance', 0))
+        balance = float(
+            resp.json().get('data', {}).get('confirmed_balance', 0)
+        )
 
         if balance >= amount:
             return True
@@ -86,7 +90,7 @@ def get_escrow(escrow_id):
                 ),
                 200
             )
-            
+
     except DoesNotExist:
         return make_response('', 404)
 
@@ -97,7 +101,7 @@ def create_escrow():
 
     escrow = {
         'name': args.get('name')[:256],
-        'key': args.get('key'),
+        'key': args.get('data'),
         'payment_address': args.get('address'),
         'release_amount': args.get('amount'),
     }
@@ -113,7 +117,7 @@ def create_escrow():
     new_escrow = EscrowRecord(**escrow)
     new_escrow.save()
 
-    excrow['id'] = str(new_escrow.id)
+    escrow['id'] = str(new_escrow.id)
 
     return make_response(
         jsonify(escrow),
